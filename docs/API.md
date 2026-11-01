@@ -1,0 +1,23 @@
+# desktopevents
+
+Import `desktopevents` (or `desktopevents.DesktopEvents`). This focused package owns `DesktopEventsSupported()`, `DesktopEventsAvailable()` and `DesktopEventMonitor(capacity As Integer = 256)`. It has no package, container, or external source dependency. Backend modules are implementation details and are non-public imports; their module-scope symbols are globally prefixed to avoid collisions.
+
+Linux X11 root PropertyNotify; Windows out-of-context WinEvents. macOS is explicitly unsupported. Supported is a compile-target statement, not a runtime verification claim. Availability is a probe, not a promise that enumeration will succeed: Linux opens and closes the default X display. Windows probes user32/kernel32. Neither installs a monitor.
+
+Enumeration is read-only. Empty arrays mean successful enumeration with no results; missing services/libraries, denied access and native errors throw. Missing optional fields are None, present empty strings are Some(""). No absent numeric or powered state is fabricated as zero/False. Snapshot properties are read-only owned copies. Native IDs are observations in their backend namespace, not cross-platform stable identities or openable handles.
+
+Adapter mapping: linuxdesktop.DesktopMonitor / WinDesktop.DesktopMonitor → DesktopEventMonitor; DesktopEvent → DesktopEventRecord. Windows Pump is internal to Drain; DrainEvents → Drain; DroppedEventCount is a read-only property. X root atoms map _NET_ACTIVE_WINDOW / _NET_CURRENT_DESKTOP / _NET_CLIENT_LIST(_STACKING) to ActiveWindowChanged / WorkspaceChanged / WindowListChanged. Windows 0x0003 maps ActiveWindowChanged; 0x8000/0x8001 with OBJID_WINDOW and child 0 map WindowListChanged. Other X properties map Other. Legacy entry modules are unchanged; no forwarding adapter is installed by this change.
+
+Builder registration: name `desktopevents`, source `libraries/desktopevents`, version `0.1.0`, output `desktopevents-0.1.0.buipkg`. All six desktop triples are in the manifest so unsupported-target predicates can be imported; this does not claim an implemented backend on each target. Registered in the unified builder: `python3 tools/build_integrations.py desktopevents --all-targets` (or `--native --all-targets` for the full native set).
+
+Maintainers run the private validation suite before release. See the repository README for public build instructions.
+
+Native evidence distinguishes hardware snapshots, successful zero-hardware enumeration, absent services and synthetic fixtures. Linux USB fixtures use package-local injectable sysfs roots; BlueZ fixtures parse recorded replies including successful empty and absent optional properties. A private D-Bus session with no BlueZ verifies service absence is an error. Real attached USB/Bluetooth diversity remains limited. ARM64 and macOS checks are not native execution claims.
+
+`Drain(limit = 256)` accepts 1..65536 and returns at most limit records, retaining the remainder. Capacity accepts 1..65536. Each call processes at most 4096 queued X events or 64 Windows messages; the owned queue drops newest events beyond capacity. DroppedEventCount counts observed application/native-callback queue losses, not unknowable OS/server losses. Xlib's own upstream queue is outside this bounded buffer. Backend is "x11" or "win32-winevent".
+
+Constructing the monitor subscribes explicitly; importing does not. The creating thread owns Drain, DroppedEventCount, and Close. Close is idempotent and use after close throws InvalidArgumentException. Explicit owner-thread Close is required: destruction catches exceptions and cannot safely release a foreign-thread subscription. Windows allows one live monitor per process, preserves WM_QUIT, and callbacks never unwind exceptions through native frames. Xlib connection loss can still terminate the process. A Windows hook covers the 3..32769 range and filters callbacks to the three supported IDs before buffering.
+
+WindowId is a borrowed opaque numeric observation, never a pointer to dereference. Timestamps are native clock milliseconds, for ordering only. IsSynthetic reflects the X11 send_event flag; WinEvent supplies no provenance bit, so False there does not prove physical user input. The Windows fixture creates a hidden window and calls NotifyWinEvent; it demonstrates callback delivery, not physical interaction. Xvfb uses genuine XChangeProperty-generated PropertyNotify events.
+
+The parent registered-build receipt verifies unified-builder archive/source parity, matching packages/dist copies, six-target combined imports and Linux x64 execution. This adds no ARM64, Windows or physical Bluetooth execution claim beyond the original native receipt.

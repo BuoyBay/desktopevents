@@ -1,0 +1,212 @@
+#If TargetLinux Then
+Import DesktopEventsLinuxBackend
+#ElseIf TargetWindows Then
+Import DesktopEventsWindowsBackend
+#End If
+#If TargetLinux Then
+Private Optional Declare Function DesktopEventsThread Lib "c" Alias "pthread_self" () As UInt64
+#ElseIf TargetWindows Then
+Private Optional Declare Function DesktopEventsThread Lib "kernel32" Alias "GetCurrentThreadId" () As UInt32
+#End If
+Public Enum DesktopEventKind As Integer
+    Other = 0
+    ActiveWindowChanged = 1
+    WorkspaceChanged = 2
+    WindowListChanged = 3
+End Enum
+Public Class DesktopEventRecord
+    Private Property mKind As DesktopEventKind
+    Public Property Kind As DesktopEventKind
+        Get
+            Return mKind
+        End Get
+    End Property
+    Private Property mNativeName As String
+    Public Property NativeName As String
+        Get
+            Return mNativeName
+        End Get
+    End Property
+    Private Property mWindowId As Integer
+    Public Property WindowId As Integer
+        Get
+            Return mWindowId
+        End Get
+    End Property
+    Private Property mTimestampMilliseconds As Integer
+    Public Property TimestampMilliseconds As Integer
+        Get
+            Return mTimestampMilliseconds
+        End Get
+    End Property
+    Private Property mIsSynthetic As Boolean
+    Public Property IsSynthetic As Boolean
+        Get
+            Return mIsSynthetic
+        End Get
+    End Property
+    Public Sub Constructor(vKind As DesktopEventKind, vNativeName As String, vWindowId As Integer, vTimestampMilliseconds As Integer, vIsSynthetic As Boolean)
+        mKind = vKind
+        mNativeName = vNativeName
+        mWindowId = vWindowId
+        mTimestampMilliseconds = vTimestampMilliseconds
+        mIsSynthetic = vIsSynthetic
+    End Sub
+End Class
+''' Read-only compile-target backend test; no runtime I/O.
+Public Function DesktopEventsSupported() As Boolean
+#If TargetLinux Then
+    Return True
+#ElseIf TargetWindows Then
+    Return True
+#Else
+    Return False
+#End If
+End Function
+''' Read-only: Linux opens/closes an X display; Windows probes user32/kernel32. No monitor is installed.
+Public Function DesktopEventsAvailable() As Boolean
+#If TargetLinux Then
+    Return DesktopEventsLinuxIsAvailable()
+#ElseIf TargetWindows Then
+    Return System.IsLibraryAvailable("user32") And System.IsLibraryAvailable("kernel32")
+#Else
+    Return False
+#End If
+End Function
+
+Public Class DesktopEventMonitor
+    Private Property mOwner As UInt64
+    Private Property mClosed As Boolean = True
+    Private Property mCapacity As Integer
+    Private Property mDropped As Integer = 0
+    Private Property mQueue As Array Of DesktopEventRecord = []
+#If TargetLinux Then
+    Private Property mNative As DesktopEventsLinuxDesktopMonitor
+#ElseIf TargetWindows Then
+    Private Property mNative As DesktopEventsWindowsDesktopMonitor
+#End If
+    ''' Read-only event subscription, on the creating thread. Windows permits one live monitor per process.
+    Public Sub Constructor(capacity As Integer = 256)
+        If capacity < 1 Or capacity > 65536 Then
+            Throw New InvalidArgumentException("Event capacity must be within 1..65536")
+        End If
+        mCapacity = capacity
+#If TargetLinux Then
+        mOwner = DesktopEventsThread()
+        mNative = New DesktopEventsLinuxDesktopMonitor()
+#ElseIf TargetWindows Then
+        mOwner = DesktopEventsThread()
+        mNative = New DesktopEventsWindowsDesktopMonitor(3, 32769, 0, capacity)
+#Else
+        Throw New UnsupportedOperationException("Desktop events are unsupported on this target")
+#End If
+        mClosed = False
+    End Sub
+    Private Sub CheckOwner()
+        If mClosed Then
+            Throw New InvalidArgumentException("DesktopEventMonitor is closed")
+        End If
+#If TargetLinux Then
+        If mOwner <> DesktopEventsThread() Then
+            Throw New InvalidArgumentException("DesktopEventMonitor must be used on its creating thread")
+        End If
+#ElseIf TargetWindows Then
+        If mOwner <> DesktopEventsThread() Then
+            Throw New InvalidArgumentException("DesktopEventMonitor must be used on its creating thread")
+        End If
+#End If
+    End Sub
+    Public Property Backend As String
+        Get
+#If TargetLinux Then
+            Return "x11"
+#ElseIf TargetWindows Then
+            Return "win32-winevent"
+#Else
+            Return "unsupported"
+#End If
+        End Get
+    End Property
+    Public Property DroppedEventCount As Integer
+        Get
+            CheckOwner()
+#If TargetWindows Then
+            Return mDropped + mNative.DroppedEventCount()
+#Else
+            Return mDropped
+#End If
+        End Get
+    End Property
+    Private Sub Enqueue(item As DesktopEventRecord)
+        If Array.Count(mQueue) >= mCapacity Then
+            mDropped += 1
+        Else
+            Array.Append(mQueue, item)
+        End If
+    End Sub
+    ''' Read-only, bounded drain (1..65536). Pumps at most 64 Windows messages or consumes 4096 X events; never waits for an event.
+    Public Function Drain(limit As Integer = 256) As Array Of DesktopEventRecord
+        CheckOwner()
+        If limit < 1 Or limit > 65536 Then
+            Throw New InvalidArgumentException("Drain limit must be within 1..65536")
+        End If
+#If TargetLinux Then
+        For Each item In mNative.Drain(4096)
+            Dim kind As DesktopEventKind = DesktopEventKind.Other
+            If item.IsActiveWindowChange Then
+                kind = DesktopEventKind.ActiveWindowChanged
+            ElseIf item.IsWorkspaceChange Then
+                kind = DesktopEventKind.WorkspaceChanged
+            ElseIf item.IsWindowListChange Then
+                kind = DesktopEventKind.WindowListChanged
+            End If
+            Enqueue(New DesktopEventRecord(kind, item.PropertyName, item.WindowId, item.TimestampMilliseconds, item.IsSynthetic))
+        Next
+#ElseIf TargetWindows Then
+        mNative.Pump(64)
+        For Each item In mNative.DrainEvents()
+            Dim kind As DesktopEventKind = DesktopEventKind.WindowListChanged
+            Dim nativeName As String = "0x8000"
+            If item.EventId = 3 Then
+                kind = DesktopEventKind.ActiveWindowChanged
+                nativeName = "0x0003"
+            ElseIf item.EventId = 32769 Then
+                nativeName = "0x8001"
+            End If
+            Enqueue(New DesktopEventRecord(kind, nativeName, CType(item.WindowHandle, Integer), item.EventTimeMilliseconds, False))
+        Next
+#End If
+        Dim drained As Array Of DesktopEventRecord = []
+        Dim remaining As Array Of DesktopEventRecord = []
+        For Each item In mQueue
+            If Array.Count(drained) < limit Then
+                Array.Append(drained, item)
+            Else
+                Array.Append(remaining, item)
+            End If
+        Next
+        mQueue = remaining
+        Return drained
+    End Function
+    ''' Releases the subscription on its creating thread; idempotent. No callbacks are delivered after successful close.
+    Public Sub Close()
+        If mClosed Then
+            Exit Sub
+        End If
+        CheckOwner()
+#If TargetLinux Then
+        mNative.Close()
+#ElseIf TargetWindows Then
+        mNative.Close()
+#End If
+        mQueue = []
+        mClosed = True
+    End Sub
+    Public Sub Destructor()
+        Try
+            Close()
+        Catch e As Exception
+            ' Explicit owner-thread Close is required; never unwind from destruction.
+        End Try
+    End Sub
+End Class
