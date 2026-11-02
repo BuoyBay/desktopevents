@@ -2,7 +2,7 @@
     "schema": 1,
     "name": "desktopevents",
     "version": "0.1.0",
-    "description": "Desktop session events \u2014 active window, workspace, window list",
+    "description": "Active window and workspace events",
     "platforms": [
         "arm64-apple-macos",
         "x86_64-apple-macos",
