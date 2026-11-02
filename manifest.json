@@ -2,7 +2,7 @@
   "schema": 1,
   "name": "desktopevents",
   "version": "0.1.0",
-  "description": "Focused read-only native desktopevents discovery",
+  "description": "Observe desktop session events through native backends",
   "platforms": [
     "arm64-apple-macos",
     "x86_64-apple-macos",
