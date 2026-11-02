@@ -1,14 +1,14 @@
 {
-  "schema": 1,
-  "name": "desktopevents",
-  "version": "0.1.0",
-  "description": "Observe desktop session events through native backends",
-  "platforms": [
-    "arm64-apple-macos",
-    "x86_64-apple-macos",
-    "x86_64-unknown-linux-gnu",
-    "aarch64-unknown-linux-gnu",
-    "x86_64-pc-windows-msvc",
-    "arm64-pc-windows-msvc"
-  ]
+    "schema": 1,
+    "name": "desktopevents",
+    "version": "0.1.0",
+    "description": "Desktop session events \u2014 active window, workspace, window list",
+    "platforms": [
+        "arm64-apple-macos",
+        "x86_64-apple-macos",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc",
+        "arm64-pc-windows-msvc"
+    ]
 }

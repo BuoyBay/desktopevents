@@ -1,4 +1,4 @@
-# Observe desktop session events through native backends
+# Desktop session events — active window, workspace, window list
 
 Import `desktopevents` (or `desktopevents.DesktopEvents`). This focused package owns `DesktopEventsSupported()`, `DesktopEventsAvailable()` and `DesktopEventMonitor(capacity As Integer = 256)`. It has no package, container, or external source dependency. Backend modules are implementation details and are non-public imports; their module-scope symbols are globally prefixed to avoid collisions.
 
