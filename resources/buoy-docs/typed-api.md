@@ -56,8 +56,6 @@ Generated from the package source declarations. Platform guards are shown where 
 
 Returns: no value.
 
-## DesktopEvents functions
-
 ### DesktopEventsSupported
 
 `Public Function DesktopEventsSupported() As Boolean`
@@ -181,8 +179,6 @@ Returns: no value.
 | `EventTime` | `UInt64` | — | — |
 | `EventState` | `Int32` | — | — |
 
-## DesktopEventsLinuxBackend functions
-
 ### DesktopEventsLinuxIsSupported
 
 `Public Function DesktopEventsLinuxIsSupported() As Boolean`
@@ -286,8 +282,6 @@ Drain at most limit queued events; never waits for a new event.
 | `PointX` | `Int32` | — | — |
 | `PointY` | `Int32` | — | — |
 | `PrivateValue` | `UInt32` | — | — |
-
-## DesktopEventsWindowsBackend functions
 
 ### DesktopEventsWindowsIsSupported
 
